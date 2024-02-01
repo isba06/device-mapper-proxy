@@ -5,5 +5,5 @@ make
 ```
 # Install
 ```
-insmod device_mapper_proxy.ko
+sudo insmod device_mapper_proxy.ko
 ```
