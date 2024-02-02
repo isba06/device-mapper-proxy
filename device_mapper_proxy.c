@@ -140,7 +140,7 @@ static int __init dmp_init(void)
 
 static void __exit dmp_exit(void)
 {
-        printk(KERN_DEBUG "\ndmp: start exit\n")
+        printk(KERN_DEBUG "\ndmp: start exit\n");
         dm_unregister_target(&dmp_target);
         sysfs_remove_file(dmpstats_kobj, &dmpstats_attr.attr);
         kobject_put(dmpstats_kobj);
