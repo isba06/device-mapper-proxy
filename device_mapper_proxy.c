@@ -17,7 +17,7 @@ struct statistics {
         unsigned long long avg_size_blck;
 };
 
-struct statistics stats = {
+static struct statistics stats = {
         .read_count = 0,
         .write_count = 0,
         .avg_read_blck = 0,
@@ -27,26 +27,27 @@ struct statistics stats = {
 
 static int dmp_map(struct dm_target *ti, struct bio *bio)
 {
-        printk(KERN_DEBUG "\ndmp: start map\n");
-		
         struct dm_dev * device = (struct dm_dev *) ti->private;
         bio_set_dev(bio, device->bdev);
+
+	printk(KERN_DEBUG "bio_size: %u\n", bio->bi_iter.bi_size);
 
         switch(bio_op(bio)) {
         case REQ_OP_READ:
                 ++stats.read_count;
+
                 if(stats.avg_read_blck == 0)
                         stats.avg_read_blck = bio->bi_iter.bi_size;
                 else
-                        stats.avg_read_blck = (stats.avg_read_blck * stats.read_count + bio->bi_iter.bi_size) / stats.read_count;
+                        stats.avg_read_blck = (stats.avg_read_blck * stats.read_count + bio->bi_iter.bi_size) / (stats.read_count + 1);
                 break;
 
         case REQ_OP_WRITE:
                 ++stats.write_count;
-				if(stats.avg_write_blck == 0)
+		if(stats.avg_write_blck == 0)
                     	stats.avg_write_blck = bio->bi_iter.bi_size;
                 else
-                    	stats.avg_write_blck = (stats.avg_write_blck * stats.write_count + bio->bi_iter.bi_size) / stats.write_count;
+                    	stats.avg_write_blck = (stats.avg_write_blck * stats.write_count + bio->bi_iter.bi_size) / (stats.write_count + 1);
                 break;
 
         default:
@@ -54,15 +55,14 @@ static int dmp_map(struct dm_target *ti, struct bio *bio)
         }
 
         stats.total_requests = stats.read_count + stats.write_count;
-		stats.avg_size_blck = (stats.read_count * stats.avg_read_blck + stats.write_count * stats.avg_write_blck) / (stats.read_count + stats.write_count);
-        printk(KERN_DEBUG "\ndmp: end map\n");
+	stats.avg_size_blck = (stats.read_count * stats.avg_read_blck + stats.write_count * stats.avg_write_blck) / (stats.read_count + stats.write_count);
+        printk(KERN_DEBUG "\nread: %llu\nwrite: %llu\naverage read: %llu\naverage write: %llu\naverage block: %llu\ntotal: %llu\n",
+                        stats.read_count, stats.write_count, stats.avg_read_blck, stats.avg_write_blck, stats.avg_size_blck, stats.total_requests);
         return DM_MAPIO_REMAPPED;
 }
 
-
 static int dmp_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 {
-        printk(KERN_DEBUG "\ndmp: start constructor\n");
         struct dm_dev * device;
 
         if (argc != 1) {
@@ -86,17 +86,15 @@ static int dmp_ctr(struct dm_target *ti, unsigned int argc, char **argv)
         }
 
         ti->private = device;
-        printk(KERN_DEBUG "\ndmp: last constructed\n");
+
         return 0;
 }
-
 
 static void dmp_dtr(struct dm_target *ti)
 {
   struct dm_dev *device= (struct dm_dev *)ti->private;
   dm_put_device(ti, device);
-  printk(KERN_DEBUG "\ndmp: destructed\n");
-}
+ }
 
 
 static struct target_type dmp_target = {
@@ -113,12 +111,12 @@ static ssize_t sysfs_show(struct kobject *kobj, struct kobj_attribute *attr, cha
         return sprintf(buf, "\nread\n requests:%lld\n avg size:%lld\nwrite\n requests:%lld\n avg size:%lld\ntotal\n requests:%lld\n avg size:%lld\n",
                 stats.read_count, stats.avg_read_blck, stats.write_count, stats.avg_write_blck, stats.total_requests, stats.avg_size_blck);
 }
+
 static struct kobject* dmpstats_kobj;
 struct kobj_attribute dmpstats_attr = __ATTR(volumes, 0660, sysfs_show, NULL);
 
 static int __init dmp_init(void)
 {
-        printk(KERN_DEBUG "\ndmp: start init\n");
         struct kobject mod_ko = (((struct module*)(THIS_MODULE))->mkobj).kobj;
         dmpstats_kobj = kobject_create_and_add("stat", &mod_ko);
         if (!dmpstats_kobj) {
@@ -132,19 +130,18 @@ static int __init dmp_init(void)
         }
 
         int r = dm_register_target(&dmp_target);
+
         if (r < 0)
                 printk(KERN_CRIT "\ndmp: register failed %d\n", r);
-        printk(KERN_DEBUG "\ndmp: init end\n");
+
         return r;
 }
 
 static void __exit dmp_exit(void)
 {
-        printk(KERN_DEBUG "\ndmp: start exit\n");
         dm_unregister_target(&dmp_target);
         sysfs_remove_file(dmpstats_kobj, &dmpstats_attr.attr);
         kobject_put(dmpstats_kobj);
-        printk(KERN_DEBUG "\ndmp: exit end\n");
         return;
 }
 
@@ -152,3 +149,4 @@ module_init(dmp_init)
 module_exit(dmp_exit)
 
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Ismail Bayramov");
