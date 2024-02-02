@@ -5,7 +5,7 @@
 #include <linux/init.h>
 
 
-#define DM_MSG_PREFIX "basictarget"
+#define DM_MSG_PREFIX "dmp"
 
 struct dmp_proxy {
         struct dm_dev *dev;
@@ -31,10 +31,9 @@ struct Stats stats = {
         .block_average_size = 0,
 };
 
-static int basictarget_map(struct dm_target *ti, struct bio *bio)
+static int dmp_map(struct dm_target *ti, struct bio *bio)
 {
-        struct Stats *stats = (struct Stats *) ti->private;
-
+        struct dm_proxy *dmproxy = (struct dm_proxy) ti->private;
         //printk(KERN_CRIT "\n<<in function basic_target_map \n");
 
 	switch(bio_op(bio)) {
@@ -47,84 +46,71 @@ static int basictarget_map(struct dm_target *ti, struct bio *bio)
 		break;
 	}
 
+        stats.amount_requests = stats.read_count + stats.write_count;
+
         //bio->bi_bdev = mdt->dev->bdev;
 	bio_set_dev(bio, ti->dev->bdev)
        	bio_endio(bio);
 
-        printk(KERN_CRIT "\n>>out function basic_target_map \n");
+        //printk(KERN_CRIT "\n>>out function basic_target_map \n");
         return DM_MAPIO_SUBMITTED;
 }
 
 
-static int basictarget_ctr(struct dm_target *ti, unsigned int argc, char **argv)
+static int dmp_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 {
         struct dm_proxy dmproxy;
         unsigned long long start;
 
-        printk(KERN_CRIT "\n >>in function basic_target_ctr \n");
-
         if (argc != 2) {
-                printk(KERN_CRIT "\n Invalid no.of arguments.\n");
+                printk(KERN_CRIT "\n Invalid number of arguments.\n");
                 ti->error = "Invalid argument count";
                 return -EINVAL;
         }
 
         //mdt = kmalloc(sizeof(struct my_dm_target), GFP_KERNEL);
 
-        if(mdt==NULL)
-        {
-                printk(KERN_CRIT "\n Mdt is null\n");
-                ti->error = "dm-basic_target: Cannot allocate linear context";
-                return -ENOMEM;
-        }
+        dmproxy->start=(sector_t)start;
 
-        if(sscanf(argv[1], "%llu", &start) != 1)
-        {
-                ti->error = "dm-basic_target: Invalid device sector";
+        if (dm_get_device(ti, argv[0], dm_table_get_mode(ti->table), &dmproxy->dev)) {
+                ti->error = "dm-proxy: Device lookup failed";
                 goto bad;
         }
 
-        mdt->start=(sector_t)start;
+        ti->private = dmproxy->dev;
 
-        if (dm_get_device(ti, argv[0], dm_table_get_mode(ti->table), &mdt->dev)) {
-                ti->error = "dm-basic_target: Device lookup failed";
-                goto bad;
-        }
-
-        ti->private = mdt;
-
-
-        printk(KERN_CRIT "\n>>out function basic_target_ctr \n");
+        //printk(KERN_CRIT "\n>>constructed\n");
         return 0;
 
   bad:
-        kfree(mdt);
-        printk(KERN_CRIT "\n>>out function basic_target_ctr with errorrrrrrrrrr \n");
+        //kfree(mdt);
+        //printk(KERN_CRIT "\n>>out function basic_target_ctr with errorrrrrrrrrr \n");
         return -EINVAL;
 }
 
 
-static void basictarget_dtr(struct dm_target *ti)
+static void dmp_dtr(struct dm_target *ti)
 {
-  struct my_dm_target *mdt = (struct my_dm_target *) ti->private;
-  printk(KERN_CRIT "\n<<in function basic_target_dtr \n");
-  dm_put_device(ti, mdt->dev);
-  kfree(mdt);
-  printk(KERN_CRIT "\n>>out function basic_target_dtr \n");
+  //struct my_dm_target *mdt = (struct my_dm_target *) ti->private;
+  //printk(KERN_CRIT "\n<<in function basic_target_dtr \n");
+  struct dm_proxy *dmproxy = (struct dm_proxy *)ti->private;
+  dm_put_device(ti, dmproxy->dev);
+  //kfree(mdt);
+  printk(KERN_CRIT "\n>>destructed\n");
 }
 
 
-static struct target_type basictarget_target = {
-	.name = "basic_target",
+static struct target_type dmp_target = {
+	.name = "dmp",
 	.version = {1,0,0},
-	.features = DM_TARGET_NOWAIT,
+	//.features = DM_TARGET_NOWAIT,
 	.module = THIS_MODULE,
-	.ctr = basictarget_ctr,
-	.dtr = basictarget_dtr,
-	.map = basictarget_map,
+	.ctr = dmp_ctr,
+	.dtr = dmp_dtr,
+	.map = dmp_map,
 };
 
-module_dm(basictarget)
+module_dm(dmp)
 
 MODULE_LICENSE("GPL");
 
