@@ -7,7 +7,7 @@
 
 #define DM_MSG_PREFIX "dmp"
 
-struct dmp_proxy {
+struct dm_proxy {
         struct dm_dev *dev;
         sector_t start;
 };
@@ -33,15 +33,15 @@ struct Stats stats = {
 
 static int dmp_map(struct dm_target *ti, struct bio *bio)
 {
-        struct dm_proxy *dmproxy = (struct dm_proxy) ti->private;
+        struct dm_proxy *dmproxy = (struct dm_proxy *) ti->private;
         //printk(KERN_CRIT "\n<<in function basic_target_map \n");
 
 	switch(bio_op(bio)) {
 	case REQ_OP_READ:
-		stats->read_count++;
+		stats.read_count++;
 		break;
 	case REQ_OP_WRITE:
-		stats->write_count++;
+		stats.write_count++;
 		//printk(KERN_CRIT "\n basic_target_map : bio is a write request.... \n");
 		break;
 	}
@@ -49,7 +49,7 @@ static int dmp_map(struct dm_target *ti, struct bio *bio)
         stats.amount_requests = stats.read_count + stats.write_count;
 
         //bio->bi_bdev = mdt->dev->bdev;
-	bio_set_dev(bio, ti->dev->bdev)
+	bio_set_dev(bio, dmproxy->dev->bdev);
        	bio_endio(bio);
 
         //printk(KERN_CRIT "\n>>out function basic_target_map \n");
@@ -59,7 +59,7 @@ static int dmp_map(struct dm_target *ti, struct bio *bio)
 
 static int dmp_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 {
-        struct dm_proxy dmproxy;
+        struct dm_proxy *dmproxy;
         unsigned long long start;
 
         if (argc != 2) {
@@ -70,9 +70,9 @@ static int dmp_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 
         //mdt = kmalloc(sizeof(struct my_dm_target), GFP_KERNEL);
 
-        dmproxy->start=(sector_t)start;
+        dmproxy->start = (sector_t)start;
 
-        if (dm_get_device(ti, argv[0], dm_table_get_mode(ti->table), &dmproxy->dev)) {
+        if (dm_get_device(ti, argv[0], dm_table_get_mode(ti->table), &(dmproxy->dev))) {
                 ti->error = "dm-proxy: Device lookup failed";
                 goto bad;
         }
