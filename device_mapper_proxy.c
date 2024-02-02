@@ -1,48 +1,64 @@
-#include<linux/module.h>
-#include<linux/kernel.h>
-#include<linux/init.h>
 #include <linux/bio.h>
 #include <linux/device-mapper.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/init.h>
 
 
+#define DM_MSG_PREFIX "basictarget"
 
-struct my_dm_target {
+struct dmp_proxy {
         struct dm_dev *dev;
         sector_t start;
 };
 
+struct Stats {
+	unsigned long long read_count;
+	unsigned long long write_count;
+	unsigned long long average_read_count;
+	unsigned long long average_write_count;
+	unsigned long long amount_requests;
+	unsigned long long block_average_size;
 
-static int basic_target_map(struct dm_target *ti, struct bio *bio)
+};
+
+struct Stats stats = {
+	.read_count = 0,
+        .write_count = 0,
+        .average_read_count = 0,
+        .average_write_count = 0,
+        .amount_requests = 0,
+        .block_average_size = 0,
+};
+
+static int basictarget_map(struct dm_target *ti, struct bio *bio)
 {
-        struct my_dm_target *mdt = (struct my_dm_target *) ti->private;
-        printk(KERN_CRIT "\n<<in function basic_target_map \n");
+        struct Stats *stats = (struct Stats *) ti->private;
 
-        switch(bio_op(bio)) {
-        case REQ_OP_READ:
+        //printk(KERN_CRIT "\n<<in function basic_target_map \n");
 
-                break;
-        case REQ_OP_WRITE:
+	switch(bio_op(bio)) {
+	case REQ_OP_READ:
+		stats->read_count++;
+		break;
+	case REQ_OP_WRITE:
+		stats->write_count++;
+		//printk(KERN_CRIT "\n basic_target_map : bio is a write request.... \n");
+		break;
+	}
 
-                break;
-        }
-
-        bio->bi_bdev = mdt->dev->bdev;
-
-        if((bio->bi_opf & WRITE) == WRITE)
-                printk(KERN_CRIT "\n basic_target_map : bio is a write request.... \n");
-        else
-                printk(KERN_CRIT "\n basic_target_map : bio is a read request.... \n");
-        submit_bio(bio);
-
+        //bio->bi_bdev = mdt->dev->bdev;
+	bio_set_dev(bio, ti->dev->bdev)
+       	bio_endio(bio);
 
         printk(KERN_CRIT "\n>>out function basic_target_map \n");
         return DM_MAPIO_SUBMITTED;
 }
 
 
-static int basic_target_ctr(struct dm_target *ti, unsigned int argc, char **argv)
+static int basictarget_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 {
-        struct my_dm_target *mdt;
+        struct dm_proxy dmproxy;
         unsigned long long start;
 
         printk(KERN_CRIT "\n >>in function basic_target_ctr \n");
@@ -53,7 +69,7 @@ static int basic_target_ctr(struct dm_target *ti, unsigned int argc, char **argv
                 return -EINVAL;
         }
 
-        mdt = kmalloc(sizeof(struct my_dm_target), GFP_KERNEL);
+        //mdt = kmalloc(sizeof(struct my_dm_target), GFP_KERNEL);
 
         if(mdt==NULL)
         {
@@ -62,7 +78,7 @@ static int basic_target_ctr(struct dm_target *ti, unsigned int argc, char **argv
                 return -ENOMEM;
         }
 
-        if(sscanf(argv[1], "%llu", &start)!=1)
+        if(sscanf(argv[1], "%llu", &start) != 1)
         {
                 ti->error = "dm-basic_target: Invalid device sector";
                 goto bad;
@@ -88,7 +104,7 @@ static int basic_target_ctr(struct dm_target *ti, unsigned int argc, char **argv
 }
 
 
-static void basic_target_dtr(struct dm_target *ti)
+static void basictarget_dtr(struct dm_target *ti)
 {
   struct my_dm_target *mdt = (struct my_dm_target *) ti->private;
   printk(KERN_CRIT "\n<<in function basic_target_dtr \n");
@@ -98,34 +114,18 @@ static void basic_target_dtr(struct dm_target *ti)
 }
 
 
-static struct target_type basic_target = {
-
-  .name = "basic_target",
-  .version = {1,0,0},
-  .module = THIS_MODULE,
-  .ctr = basic_target_ctr,
-  .dtr = basic_target_dtr,
-  .map = basic_target_map,
+static struct target_type basictarget_target = {
+	.name = "basic_target",
+	.version = {1,0,0},
+	.features = DM_TARGET_NOWAIT,
+	.module = THIS_MODULE,
+	.ctr = basictarget_ctr,
+	.dtr = basictarget_dtr,
+	.map = basictarget_map,
 };
 
+module_dm(basictarget)
 
-static int init_basic_target(void)
-{
-  int result;
-  result = dm_register_target(&basic_target);
-  if(result < 0)
-    printk(KERN_CRIT "\n Error in registering target \n");
-  return 0;
-}
-
-
-static void cleanup_basic_target(void)
-{
-  dm_unregister_target(&basic_target);
-
-}
-
-module_init(init_basic_target)
-module_exit(cleanup_basic_target)
 MODULE_LICENSE("GPL");
+
 
