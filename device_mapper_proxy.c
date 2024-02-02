@@ -34,7 +34,6 @@ struct statistics stats = {
 static int dmp_map(struct dm_target *ti, struct bio *bio)
 {
         struct dm_proxy *dmproxy = (struct dm_proxy *) ti->private;
-        //printk(KERN_CRIT "\n<<in function basic_target_map \n");
 
 	switch(bio_op(bio)) {
 	case REQ_OP_READ:
@@ -42,17 +41,14 @@ static int dmp_map(struct dm_target *ti, struct bio *bio)
 		break;
 	case REQ_OP_WRITE:
 		stats.write_count++;
-		//printk(KERN_CRIT "\n basic_target_map : bio is a write request.... \n");
 		break;
 	}
 
         stats.total_requests = stats.read_count + stats.write_count;
 
-        //bio->bi_bdev = mdt->dev->bdev;
 	bio_set_dev(bio, dmproxy->dev->bdev);
        	bio_endio(bio);
 
-        //printk(KERN_CRIT "\n>>out function basic_target_map \n");
         return DM_MAPIO_SUBMITTED;
 }
 
@@ -62,13 +58,11 @@ static int dmp_ctr(struct dm_target *ti, unsigned int argc, char **argv)
         struct dm_proxy *dmproxy;
         unsigned long long start;
 
-        if (argc != 2) {
+        if (argc != 1) {
                 printk(KERN_CRIT "\n Invalid number of arguments.\n");
                 ti->error = "Invalid argument count";
                 return -EINVAL;
         }
-
-        //mdt = kmalloc(sizeof(struct my_dm_target), GFP_KERNEL);
 
         dmproxy->start = (sector_t)start;
 
@@ -78,19 +72,14 @@ static int dmp_ctr(struct dm_target *ti, unsigned int argc, char **argv)
         }
 
         ti->private = dmproxy->dev;
-
         return 0;
-        
 }
 
 
 static void dmp_dtr(struct dm_target *ti)
 {
-  //struct my_dm_target *mdt = (struct my_dm_target *) ti->private;
-  //printk(KERN_CRIT "\n<<in function basic_target_dtr \n");
   struct dm_proxy *dmproxy = (struct dm_proxy *)ti->private;
   dm_put_device(ti, dmproxy->dev);
-  //kfree(mdt);
   printk(KERN_CRIT "\n>>destructed\n");
 }
 
@@ -98,22 +87,21 @@ static void dmp_dtr(struct dm_target *ti)
 static struct target_type dmp_target = {
 	.name = "dmp",
 	.version = {1,0,0},
-	//.features = DM_TARGET_NOWAIT,
 	.module = THIS_MODULE,
 	.ctr = dmp_ctr,
 	.dtr = dmp_dtr,
 	.map = dmp_map,
 };
 
-struct kobj_attribute dmpstats_attr = __ATTR(dmpstats, 0660, sysfs_show, NULL);
-
 static struct kobject* dmpstats_kobj;
 
 static ssize_t sysfs_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf) 
 {
-        return sprintf(buf, "\nread\n requests:%lld\n avg size:%lld\n write\n requests:%lld\n avg size:%lld\n total\n requests:%lld\n avg size:%lld\n", 
+        return sprintf(buf, "\nread\n requests:%lld\n avg size:%lld\nwrite\n requests:%lld\n avg size:%lld\ntotal\n requests:%lld\n avg size:%lld\n", 
                 stats.read_count, stats.average_read_count, stats.write_count, stats.average_write_count, stats.total_requests, stats.block_average_size);
 }
+
+struct kobj_attribute dmpstats_attr = __ATTR(dmpstats, 0660, sysfs_show, NULL);
 
 static int __init dmp_init(void) 
 {
