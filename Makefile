@@ -1,4 +1,7 @@
-obj-m += device_mapper_proxy.o
+
+obj-m += dmp.o
+dmp-y = device_mapper_proxy.o
+
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
